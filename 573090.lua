@@ -1,1 +1,766 @@
-do local correctKey="X7mQ2vLp9K";local discordLink="https://discord.gg/VD6CYDMZ4X";local KeyFile="WaterWare_Key.txt";local Players=game:GetService("Players");local player=Players.LocalPlayer;local HttpService=game:GetService("HttpService");local function saveKey(key) writefile(KeyFile,key);end local function loadSavedKey() if isfile(KeyFile) then return readfile(KeyFile);end return nil;end local ConfigFolder="WaterWare_Configs";local function ensureConfigFolder() if  not isfolder(ConfigFolder) then makefolder(ConfigFolder);end end local function saveConfig(name,data) ensureConfigFolder();local jsonData=HttpService:JSONEncode(data);writefile(ConfigFolder   .. "/"   .. name   .. ".json" ,jsonData);end local function loadConfig(name) local path=ConfigFolder   .. "/"   .. name   .. ".json" ;if isfile(path) then local jsonData=readfile(path);return HttpService:JSONDecode(jsonData);end return nil;end local function listConfigs() ensureConfigFolder();local configs={};local files=listfiles(ConfigFolder);for _,file in ipairs(files) do if (file:sub( -5)==".json") then local name=file:match("([^/\\]+)%.json$");if (name and (name~="_autoload")) then table.insert(configs,name);end end end return configs;end local function saveAutoloadConfig(name) writefile(ConfigFolder   .. "/_autoload.txt" ,name);end local function getAutoloadConfig() local path=ConfigFolder   .. "/_autoload.txt" ;if isfile(path) then return readfile(path);end return nil;end local function cleanupConnections() if _G.NoStunLoop then _G.NoStunLoop:Disconnect();_G.NoStunLoop=nil;end if _G.PlayerAddedConnection then _G.PlayerAddedConnection:Disconnect();_G.PlayerAddedConnection=nil;end if _G.PlayerRemovingConnection then _G.PlayerRemovingConnection:Disconnect();_G.PlayerRemovingConnection=nil;end if _G.CharacterConnections then for userId,conns in pairs(_G.CharacterConnections) do if conns.Added then conns.Added:Disconnect();end if conns.Removing then conns.Removing:Disconnect();end end _G.CharacterConnections={};end if _G.ModifiedPlayers then for userId,data in pairs(_G.ModifiedPlayers) do if (data and data.HRP and data.HRP.Parent) then data.HRP.Size=data.OriginalSize;data.HRP.Transparency=data.OriginalTransparency;end end _G.ModifiedPlayers={};end _G.HitboxEnabled=false;_G.NoStunEnabled=false;end function loadMainScript() local success,library=pcall(function() return loadstring(game:HttpGet("https://raw.githubusercontent.com/Consistt/Ui/main/UnLeaked"))();end);if ( not success or  not library) then warn("Failed to load UI library");return;end library.rank="developer";library.title="WaterWare";local Wm=library:Watermark("WaterWare | "   .. library:GetUsername()   .. " | rank: "   .. library.rank );local FpsWm=Wm:AddWatermark("fps: "   .. library.fps );local fpsConnection;fpsConnection=game:GetService("RunService").RenderStepped:Connect(function() if (library and library.fps) then FpsWm:Text("fps: "   .. library.fps );else fpsConnection:Disconnect();end end);local Notif=library:InitNotifications();local LoadingNotif=Notif:Notify("Loading WaterWare...",3,"information");library:Introduction();task.wait(1);local Init=library:Init();local RunService=game:GetService("RunService");local UserInputService=game:GetService("UserInputService");_G.NoStunSpeed=0.2;_G.HitboxEnabled=false;_G.NoStunEnabled=false;_G.ModifiedPlayers={};_G.CharacterConnections={};_G.HitboxSize=10;local SpeedSlider;local HitboxSlider;local ConfigNameInput;local CombatTab=Init:NewTab("Combat 💧");local CombatSection=CombatTab:NewSection("Stun Bypass");SpeedSlider=CombatTab:NewSlider("⚠️ CFrame Speed (High=BAN)","",true,"/",{min=1,max=10,default=2},function(value) local int=math.clamp(math.floor(value + 0.5 ),1,10);_G.NoStunSpeed=int * 0.1 ;if (SpeedSlider and SpeedSlider.SetValue) then pcall(function() SpeedSlider:SetValue(int);end);end end);local keys={W=false,A=false,S=false,D=false};local inputConnections={};table.insert(inputConnections,UserInputService.InputBegan:Connect(function(input,gpe) if gpe then return;end if (input.KeyCode==Enum.KeyCode.W) then keys.W=true;end if (input.KeyCode==Enum.KeyCode.A) then keys.A=true;end if (input.KeyCode==Enum.KeyCode.S) then keys.S=true;end if (input.KeyCode==Enum.KeyCode.D) then keys.D=true;end end));table.insert(inputConnections,UserInputService.InputEnded:Connect(function(input) if (input.KeyCode==Enum.KeyCode.W) then keys.W=false;end if (input.KeyCode==Enum.KeyCode.A) then keys.A=false;end if (input.KeyCode==Enum.KeyCode.S) then keys.S=false;end if (input.KeyCode==Enum.KeyCode.D) then keys.D=false;end end));local NoStunToggle=CombatTab:NewToggle("🛡 No Stun",false,function(state) _G.NoStunEnabled=state;local notifSound=Instance.new("Sound");notifSound.Parent=workspace;notifSound.PlaybackSpeed=1;notifSound.Volume=0.15;notifSound.SoundId="rbxassetid://4590662766";notifSound.PlayOnRemove=true;notifSound:Destroy();if state then _G.NoStunLoop=RunService.RenderStepped:Connect(function() if  not _G.NoStunEnabled then return;end local char=player.Character;if  not char then return;end local hrp=char:FindFirstChild("HumanoidRootPart");local humanoid=char:FindFirstChild("Humanoid");if ( not hrp or  not humanoid) then return;end if hrp.Anchored then hrp.Anchored=false;end for _,v in pairs(hrp:GetChildren()) do if (v:IsA("BodyPosition") or v:IsA("BodyVelocity") or v:IsA("BodyGyro")) then v:Destroy();end end for _,v in pairs(char:GetDescendants()) do if ((v.Name=="Stun") or (v.Name=="Stunned") or (v.Name=="RagdollConstraint")) then v:Destroy();end end if (humanoid.WalkSpeed<5) then humanoid.WalkSpeed=16;end local moving=keys.W or keys.A or keys.S or keys.D ;if  not moving then return;end local moveDir=Vector3.zero;local cam=workspace.CurrentCamera;if keys.W then moveDir=moveDir + cam.CFrame.LookVector ;end if keys.S then moveDir=moveDir-cam.CFrame.LookVector ;end if keys.A then moveDir=moveDir-cam.CFrame.RightVector ;end if keys.D then moveDir=moveDir + cam.CFrame.RightVector ;end moveDir=Vector3.new(moveDir.X,0,moveDir.Z);if (moveDir.Magnitude>0) then local speed=_G.NoStunSpeed * (humanoid.WalkSpeed/16) ;moveDir=moveDir.Unit * speed ;hrp.CFrame=hrp.CFrame + moveDir ;end end);elseif _G.NoStunLoop then _G.NoStunLoop:Disconnect();_G.NoStunLoop=nil;end end);CombatTab:NewLabel("Always use between 1 - 2 for safety. High values can cause bans.","left");local HitboxSection=CombatTab:NewSection("Hitbox Expander");local function expandHitbox(targetPlayer) if (targetPlayer==player) then return;end local char=targetPlayer.Character;if  not char then return;end local hrp=char:FindFirstChild("HumanoidRootPart");if  not hrp then return;end local oldData=_G.ModifiedPlayers[targetPlayer.UserId];if (oldData and oldData.HRP and oldData.HRP.Parent) then oldData.HRP.Size=oldData.OriginalSize;oldData.HRP.Transparency=oldData.OriginalTransparency;end _G.ModifiedPlayers[targetPlayer.UserId]={OriginalSize=hrp.Size,OriginalTransparency=hrp.Transparency,HRP=hrp};hrp.Size=Vector3.new(_G.HitboxSize,_G.HitboxSize,_G.HitboxSize);hrp.Transparency=0.7;hrp.Color=Color3.fromRGB(0,255,0);hrp.Material=Enum.Material.ForceField;end local function restoreHitbox(targetPlayer) local data=_G.ModifiedPlayers[targetPlayer.UserId];if (data and data.HRP and data.HRP.Parent) then data.HRP.Size=data.OriginalSize;data.HRP.Transparency=data.OriginalTransparency;end _G.ModifiedPlayers[targetPlayer.UserId]=nil;end local function restoreAllHitboxes() for userId,data in pairs(_G.ModifiedPlayers) do if (data and data.HRP and data.HRP.Parent) then data.HRP.Size=data.OriginalSize;data.HRP.Transparency=data.OriginalTransparency;end end _G.ModifiedPlayers={};end HitboxSlider=CombatTab:NewSlider("Hitbox Size","",true,"/",{min=2,max=50,default=10},function(value) _G.HitboxSize=value;if _G.HitboxEnabled then for userId,data in pairs(_G.ModifiedPlayers) do if ((userId~=player.UserId) and data and data.HRP and data.HRP.Parent) then data.HRP.Size=Vector3.new(_G.HitboxSize,_G.HitboxSize,_G.HitboxSize);end end end end);local HitboxToggle=CombatTab:NewToggle("📦 Expand Enemy Hitboxes",false,function(state) _G.HitboxEnabled=state;local notifSound=Instance.new("Sound");notifSound.Parent=workspace;notifSound.PlaybackSpeed=1;notifSound.Volume=0.15;notifSound.SoundId="rbxassetid://4590662766";notifSound.PlayOnRemove=true;notifSound:Destroy();if state then for _,plr in pairs(Players:GetPlayers()) do if (plr~=player) then expandHitbox(plr);end end _G.PlayerAddedConnection=Players.PlayerAdded:Connect(function(newPlayer) if (newPlayer==player) then return;end local charAddedConn=newPlayer.CharacterAdded:Connect(function() task.wait(0.3);if _G.HitboxEnabled then expandHitbox(newPlayer);end end);local charRemovingConn=newPlayer.CharacterRemoving:Connect(function() _G.ModifiedPlayers[newPlayer.UserId]=nil;end);_G.CharacterConnections[newPlayer.UserId]={Added=charAddedConn,Removing=charRemovingConn};if newPlayer.Character then expandHitbox(newPlayer);end end);_G.PlayerRemovingConnection=Players.PlayerRemoving:Connect(function(leavingPlayer) restoreHitbox(leavingPlayer);if _G.CharacterConnections[leavingPlayer.UserId] then if _G.CharacterConnections[leavingPlayer.UserId].Added then _G.CharacterConnections[leavingPlayer.UserId].Added:Disconnect();end if _G.CharacterConnections[leavingPlayer.UserId].Removing then _G.CharacterConnections[leavingPlayer.UserId].Removing:Disconnect();end _G.CharacterConnections[leavingPlayer.UserId]=nil;end end);_G.UpdateLoopActive=true;task.spawn(function() while _G.UpdateLoopActive and _G.HitboxEnabled  do task.wait(0.5);if  not _G.HitboxEnabled then break;end for _,plr in pairs(Players:GetPlayers()) do if (plr==player) then continue;end local char=plr.Character;if char then local hrp=char:FindFirstChild("HumanoidRootPart");if hrp then local data=_G.ModifiedPlayers[plr.UserId];if ( not data or  not data.HRP or (data.HRP.Parent==nil)) then expandHitbox(plr);end end end end end end);else restoreAllHitboxes();_G.UpdateLoopActive=false;if _G.PlayerAddedConnection then _G.PlayerAddedConnection:Disconnect();_G.PlayerAddedConnection=nil;end if _G.PlayerRemovingConnection then _G.PlayerRemovingConnection:Disconnect();_G.PlayerRemovingConnection=nil;end for userId,conns in pairs(_G.CharacterConnections) do if conns.Added then conns.Added:Disconnect();end if conns.Removing then conns.Removing:Disconnect();end end _G.CharacterConnections={};end end);CombatTab:NewLabel("Expands enemy HRP - green boxes visible","left");local ConfigTab=Init:NewTab("Configs 💾");ConfigTab:NewSection("Config Name");ConfigNameInput=ConfigTab:NewTextbox("Config Name","Enter config name...",function(text) end);ConfigTab:NewSection("Save Config");ConfigTab:NewButton("💾 Save Config",function() local configName=(ConfigNameInput and ConfigNameInput.Value) or "MyConfig" ;if (configName=="") then configName="MyConfig";end local configData={NoStunSpeed=_G.NoStunSpeed,HitboxSize=_G.HitboxSize,Timestamp=os.time()};saveConfig(configName,configData);Notif:Notify("Config Saved! Name: "   .. configName ,4,"success");end);ConfigTab:NewSection("Load Config");ConfigTab:NewButton("📂 Load Config",function() local configName=(ConfigNameInput and ConfigNameInput.Value) or "MyConfig" ;if (configName=="") then configName="MyConfig";end local data=loadConfig(configName);if data then _G.NoStunSpeed=data.NoStunSpeed or 0.2 ;_G.HitboxSize=data.HitboxSize or 10 ;if (SpeedSlider and SpeedSlider.SetValue) then pcall(function() SpeedSlider:SetValue(math.floor((_G.NoStunSpeed * 10) + 0.5 ));end);end if (HitboxSlider and HitboxSlider.SetValue) then pcall(function() HitboxSlider:SetValue(_G.HitboxSize);end);end Notif:Notify("Config Loaded! "   .. configName ,4,"success");else Notif:Notify("Error: Config not found: "   .. configName ,4,"error");end end);ConfigTab:NewButton("🔄 List Configs",function() local configs=listConfigs();local list=table.concat(configs,", ");Notif:Notify(((list~="") and list) or "No configs found" ,4,"information");end);ConfigTab:NewSection("Autoload");ConfigTab:NewButton("🔁 Set as Autoload",function() local configName=(ConfigNameInput and ConfigNameInput.Value) or "MyConfig" ;if (configName=="") then configName="MyConfig";end saveAutoloadConfig(configName);Notif:Notify("Autoload Set! "   .. configName ,4,"success");end);local SettingsTab=Init:NewTab("Settings ⚙️");local SettingsSection=SettingsTab:NewSection("GUI");SettingsTab:NewToggle("❌ Destroy GUI",false,function(state) if state then cleanupConnections();for _,conn in ipairs(inputConnections) do conn:Disconnect();end if fpsConnection then fpsConnection:Disconnect();end local notifSound=Instance.new("Sound");notifSound.Parent=workspace;notifSound.PlaybackSpeed=1;notifSound.Volume=0.4;notifSound.SoundId="rbxassetid://367383822";notifSound.PlayOnRemove=true;notifSound:Destroy();task.wait(0.5);library:Remove();end end);task.delay(2,function() local autoload=getAutoloadConfig();if autoload then local data=loadConfig(autoload);if data then _G.NoStunSpeed=data.NoStunSpeed or 0.2 ;_G.HitboxSize=data.HitboxSize or 10 ;if (SpeedSlider and SpeedSlider.SetValue) then pcall(function() SpeedSlider:SetValue(math.floor((_G.NoStunSpeed * 10) + 0.5 ));end);end if (HitboxSlider and HitboxSlider.SetValue) then pcall(function() HitboxSlider:SetValue(_G.HitboxSize);end);end Notif:Notify("Autoloaded: "   .. autoload ,4,"success");end end end);Notif:Notify("WaterWare Loaded! Use RightControl to toggle UI",5,"success");end local savedKey=loadSavedKey();if (savedKey and (savedKey==correctKey)) then loadMainScript();else local KeyGui=Instance.new("ScreenGui");KeyGui.Name="WaterWareKeySystem";KeyGui.Parent=game.CoreGui;KeyGui.ResetOnSpawn=false;local MainFrame=Instance.new("Frame");MainFrame.Size=UDim2.new(0,400,0,280);MainFrame.Position=UDim2.new(0.5, -200,0.5, -140);MainFrame.BackgroundColor3=Color3.fromRGB(30,30,30);MainFrame.BorderSizePixel=0;MainFrame.Parent=KeyGui;local Corner=Instance.new("UICorner");Corner.CornerRadius=UDim.new(0,8);Corner.Parent=MainFrame;local Title=Instance.new("TextLabel");Title.Size=UDim2.new(1,0,0,50);Title.BackgroundColor3=Color3.fromRGB(135,206,250);Title.Text="💧 WaterWare Key System";Title.TextColor3=Color3.fromRGB(255,255,255);Title.TextSize=24;Title.Font=Enum.Font.SourceSansBold;Title.Parent=MainFrame;local TitleCorner=Instance.new("UICorner");TitleCorner.CornerRadius=UDim.new(0,8);TitleCorner.Parent=Title;local SavedKeyStatus=Instance.new("TextLabel");SavedKeyStatus.Size=UDim2.new(1, -20,0,25);SavedKeyStatus.Position=UDim2.new(0,10,0,55);SavedKeyStatus.BackgroundTransparency=1;if (savedKey and (savedKey~=correctKey)) then SavedKeyStatus.Text="⚠️ Saved key is invalid!";SavedKeyStatus.TextColor3=Color3.fromRGB(255,150,50);else SavedKeyStatus.Text="";end SavedKeyStatus.TextSize=14;SavedKeyStatus.Font=Enum.Font.SourceSans;SavedKeyStatus.Parent=MainFrame;local DiscordLabel=Instance.new("TextLabel");DiscordLabel.Size=UDim2.new(1, -20,0,30);DiscordLabel.Position=UDim2.new(0,10,0,85);DiscordLabel.BackgroundTransparency=1;DiscordLabel.Text="Join Discord for key:";DiscordLabel.TextColor3=Color3.fromRGB(200,200,200);DiscordLabel.TextSize=14;DiscordLabel.Font=Enum.Font.SourceSans;DiscordLabel.Parent=MainFrame;local CopyBtn=Instance.new("TextButton");CopyBtn.Size=UDim2.new(1, -40,0,35);CopyBtn.Position=UDim2.new(0,20,0,115);CopyBtn.BackgroundColor3=Color3.fromRGB(88,101,242);CopyBtn.Text="📋 Copy Discord Link";CopyBtn.TextColor3=Color3.fromRGB(255,255,255);CopyBtn.TextSize=16;CopyBtn.Font=Enum.Font.SourceSansBold;CopyBtn.Parent=MainFrame;local CopyCorner=Instance.new("UICorner");CopyCorner.CornerRadius=UDim.new(0,6);CopyCorner.Parent=CopyBtn;local CopyStatus=Instance.new("TextLabel");CopyStatus.Size=UDim2.new(1, -20,0,20);CopyStatus.Position=UDim2.new(0,10,0,150);CopyStatus.BackgroundTransparency=1;CopyStatus.Text="";CopyStatus.TextColor3=Color3.fromRGB(50,255,50);CopyStatus.TextSize=12;CopyStatus.Font=Enum.Font.SourceSans;CopyStatus.Parent=MainFrame;local KeyBox=Instance.new("TextBox");KeyBox.Size=UDim2.new(1, -40,0,40);KeyBox.Position=UDim2.new(0,20,0,175);KeyBox.BackgroundColor3=Color3.fromRGB(50,50,50);KeyBox.Text="";KeyBox.PlaceholderText="Enter Key Here...";KeyBox.TextColor3=Color3.fromRGB(255,255,255);KeyBox.PlaceholderColor3=Color3.fromRGB(150,150,150);KeyBox.TextSize=18;KeyBox.Font=Enum.Font.SourceSans;KeyBox.ClearTextOnFocus=false;KeyBox.Parent=MainFrame;local KeyCorner=Instance.new("UICorner");KeyCorner.CornerRadius=UDim.new(0,6);KeyCorner.Parent=KeyBox;local SubmitBtn=Instance.new("TextButton");SubmitBtn.Size=UDim2.new(0,150,0,40);SubmitBtn.Position=UDim2.new(0.5, -75,1, -50);SubmitBtn.BackgroundColor3=Color3.fromRGB(135,206,250);SubmitBtn.Text="Submit";SubmitBtn.TextColor3=Color3.fromRGB(30,30,30);SubmitBtn.TextSize=20;SubmitBtn.Font=Enum.Font.SourceSansBold;SubmitBtn.Parent=MainFrame;local SubmitCorner=Instance.new("UICorner");SubmitCorner.CornerRadius=UDim.new(0,6);SubmitCorner.Parent=SubmitBtn;local StatusLabel=Instance.new("TextLabel");StatusLabel.Size=UDim2.new(1, -20,0,25);StatusLabel.Position=UDim2.new(0,10,0,220);StatusLabel.BackgroundTransparency=1;StatusLabel.Text="";StatusLabel.TextColor3=Color3.fromRGB(255,50,50);StatusLabel.TextSize=14;StatusLabel.Font=Enum.Font.SourceSans;StatusLabel.Parent=MainFrame;local dragging=false;local dragInput;local dragStart;local startPos;Title.InputBegan:Connect(function(input) if ((input.UserInputType==Enum.UserInputType.MouseButton1) or (input.UserInputType==Enum.UserInputType.Touch)) then dragging=true;dragStart=input.Position;startPos=MainFrame.Position;end end);Title.InputEnded:Connect(function(input) if ((input.UserInputType==Enum.UserInputType.MouseButton1) or (input.UserInputType==Enum.UserInputType.Touch)) then dragging=false;end end);UserInputService.InputChanged:Connect(function(input) if (dragging and (input==dragInput)) then local delta=input.Position-dragStart ;MainFrame.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset + delta.X ,startPos.Y.Scale,startPos.Y.Offset + delta.Y );end end);Title.InputChanged:Connect(function(input) if (input.UserInputType==Enum.UserInputType.MouseMovement) then dragInput=input;end end);CopyBtn.MouseButton1Click:Connect(function() local success=pcall(function() setclipboard(discordLink);end);if success then CopyStatus.Text="✓ Link copied!";CopyStatus.TextColor3=Color3.fromRGB(50,255,50);else CopyStatus.Text="✗ Copy failed";CopyStatus.TextColor3=Color3.fromRGB(255,50,50);end task.wait(3);CopyStatus.Text="";end);local function trySubmit() local enteredKey=KeyBox.Text:gsub("%s+","");if (enteredKey==correctKey) then saveKey(enteredKey);StatusLabel.TextColor3=Color3.fromRGB(50,255,50);StatusLabel.Text="✓ Key Accepted! Loading...";task.wait(0.5);KeyGui:Destroy();loadMainScript();else StatusLabel.TextColor3=Color3.fromRGB(255,50,50);StatusLabel.Text="✗ Invalid Key!";KeyBox.Text="";end end SubmitBtn.MouseButton1Click:Connect(trySubmit);KeyBox.FocusLost:Connect(function(enterPressed) if enterPressed then trySubmit();end end);end end
+-- KEY SYSTEM
+local correctKey = "WaterWare2026"
+local discordLink = "https://discord.gg/VD6CYDMZ4X"
+local KeyFile = "WaterWare_Key.txt"
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService") -- FIXED: Moved to top level
+
+-- Function to save key
+local function saveKey(key)
+    writefile(KeyFile, key)
+end
+
+-- Function to load saved key
+local function loadSavedKey()
+    if isfile(KeyFile) then
+        return readfile(KeyFile)
+    end
+    return nil
+end
+
+-- CONFIG FUNCTIONS
+local ConfigFolder = "WaterWare_Configs"
+
+local function ensureConfigFolder()
+    if not isfolder(ConfigFolder) then
+        makefolder(ConfigFolder)
+    end
+end
+
+local function saveConfig(name, data)
+    ensureConfigFolder()
+    local jsonData = HttpService:JSONEncode(data)
+    writefile(ConfigFolder .. "/" .. name .. ".json", jsonData)
+end
+
+local function loadConfig(name)
+    local path = ConfigFolder .. "/" .. name .. ".json"
+    if isfile(path) then
+        local jsonData = readfile(path)
+        return HttpService:JSONDecode(jsonData)
+    end
+    return nil
+end
+
+local function listConfigs()
+    ensureConfigFolder()
+    local configs = {}
+    local files = listfiles(ConfigFolder)
+    for _, file in ipairs(files) do
+        if file:sub(-5) == ".json" then
+            local name = file:match("([^/\\]+)%.json$")
+            if name and name ~= "_autoload" then
+                table.insert(configs, name)
+            end
+        end
+    end
+    return configs
+end
+
+local function saveAutoloadConfig(name)
+    writefile(ConfigFolder .. "/_autoload.txt", name)
+end
+
+local function getAutoloadConfig()
+    local path = ConfigFolder .. "/_autoload.txt"
+    if isfile(path) then
+        return readfile(path)
+    end
+    return nil
+end
+
+-- Cleanup function for all connections
+local function cleanupConnections()
+    if _G.NoStunLoop then
+        _G.NoStunLoop:Disconnect()
+        _G.NoStunLoop = nil
+    end
+    
+    if _G.PlayerAddedConnection then
+        _G.PlayerAddedConnection:Disconnect()
+        _G.PlayerAddedConnection = nil
+    end
+    
+    if _G.PlayerRemovingConnection then
+        _G.PlayerRemovingConnection:Disconnect()
+        _G.PlayerRemovingConnection = nil
+    end
+    
+    -- Cleanup CharacterConnections
+    if _G.CharacterConnections then
+        for userId, conns in pairs(_G.CharacterConnections) do
+            if conns.Added then conns.Added:Disconnect() end
+            if conns.Removing then conns.Removing:Disconnect() end
+        end
+        _G.CharacterConnections = {}
+    end
+    
+    -- Restore all hitboxes
+    if _G.ModifiedPlayers then
+        for userId, data in pairs(_G.ModifiedPlayers) do
+            if data and data.HRP and data.HRP.Parent then
+                data.HRP.Size = data.OriginalSize
+                data.HRP.Transparency = data.OriginalTransparency
+            end
+        end
+        _G.ModifiedPlayers = {}
+    end
+    
+    _G.HitboxEnabled = false
+    _G.NoStunEnabled = false
+end
+
+-- MAIN SCRIPT FUNCTION
+function loadMainScript()
+    local success, library = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Consistt/Ui/main/UnLeaked"))()
+    end)
+    
+    if not success or not library then
+        warn("Failed to load UI library")
+        return
+    end
+    
+    library.rank = "developer"
+    library.title = "WaterWare"
+    
+    local Wm = library:Watermark("WaterWare | " .. library:GetUsername() .. " | rank: " .. library.rank)
+    local FpsWm = Wm:AddWatermark("fps: " .. library.fps)
+    
+    local fpsConnection
+    fpsConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if library and library.fps then
+            FpsWm:Text("fps: " .. library.fps)
+        else
+            fpsConnection:Disconnect()
+        end
+    end)
+    
+    local Notif = library:InitNotifications()
+    local LoadingNotif = Notif:Notify("Loading WaterWare...", 3, "information")
+    
+    library:Introduction()
+    task.wait(1)
+    local Init = library:Init()
+    
+    local RunService = game:GetService("RunService")
+    
+    -- Initialize _G variables
+    _G.NoStunSpeed = 0.20
+    _G.HitboxEnabled = false
+    _G.NoStunEnabled = false
+    _G.ModifiedPlayers = {}
+    _G.CharacterConnections = {}
+    _G.HitboxSize = 10
+    
+    -- Store references for config loading
+    local SpeedSlider
+    local HitboxSlider
+    local ConfigNameInput
+    
+    -- Combat Tab
+    local CombatTab = Init:NewTab("Combat 💧")
+    local CombatSection = CombatTab:NewSection("Stun Bypass")
+    
+    -- Speed Slider (1-10 mapped to 0.1-1.0)
+    SpeedSlider = CombatTab:NewSlider("⚠️ CFrame Speed (High=BAN)", "", true, "/", {min = 1, max = 10, default = 2}, function(value)
+        local int = math.clamp(math.floor(value + 0.5), 1, 10)
+        _G.NoStunSpeed = int * 0.10
+        
+        -- Update slider display
+        if SpeedSlider and SpeedSlider.SetValue then
+            pcall(function() SpeedSlider:SetValue(int) end)
+        end
+    end)
+    
+    -- Input handling for movement keys
+    local keys = {W = false, A = false, S = false, D = false}
+    local inputConnections = {}
+    
+    table.insert(inputConnections, UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == Enum.KeyCode.W then keys.W = true end
+        if input.KeyCode == Enum.KeyCode.A then keys.A = true end
+        if input.KeyCode == Enum.KeyCode.S then keys.S = true end
+        if input.KeyCode == Enum.KeyCode.D then keys.D = true end
+    end))
+    
+    table.insert(inputConnections, UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.W then keys.W = false end
+        if input.KeyCode == Enum.KeyCode.A then keys.A = false end
+        if input.KeyCode == Enum.KeyCode.S then keys.S = false end
+        if input.KeyCode == Enum.KeyCode.D then keys.D = false end
+    end))
+    
+    -- No Stun Toggle
+    local NoStunToggle = CombatTab:NewToggle("🛡 No Stun", false, function(state)
+        _G.NoStunEnabled = state
+        
+        local notifSound = Instance.new("Sound")
+        notifSound.Parent = workspace
+        notifSound.PlaybackSpeed = 1
+        notifSound.Volume = 0.15
+        notifSound.SoundId = "rbxassetid://4590662766"
+        notifSound.PlayOnRemove = true
+        notifSound:Destroy()
+        
+        if state then
+            _G.NoStunLoop = RunService.RenderStepped:Connect(function()
+                if not _G.NoStunEnabled then return end
+                
+                local char = player.Character
+                if not char then return end
+                
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                local humanoid = char:FindFirstChild("Humanoid")
+                if not hrp or not humanoid then return end
+                
+                -- Unanchor and remove body movers
+                if hrp.Anchored then 
+                    hrp.Anchored = false 
+                end
+                
+                for _, v in pairs(hrp:GetChildren()) do
+                    if v:IsA("BodyPosition") or v:IsA("BodyVelocity") or v:IsA("BodyGyro") then
+                        v:Destroy()
+                    end
+                end
+                
+                -- Remove stun effects
+                for _, v in pairs(char:GetDescendants()) do
+                    if v.Name == "Stun" or v.Name == "Stunned" or v.Name == "RagdollConstraint" then
+                        v:Destroy()
+                    end
+                end
+                
+                -- Reset walkspeed
+                if humanoid.WalkSpeed < 5 then 
+                    humanoid.WalkSpeed = 16 
+                end
+                
+                -- CFrame movement
+                local moving = keys.W or keys.A or keys.S or keys.D
+                if not moving then return end
+                
+                local moveDir = Vector3.zero
+                local cam = workspace.CurrentCamera
+                
+                if keys.W then moveDir = moveDir + cam.CFrame.LookVector end
+                if keys.S then moveDir = moveDir - cam.CFrame.LookVector end
+                if keys.A then moveDir = moveDir - cam.CFrame.RightVector end
+                if keys.D then moveDir = moveDir + cam.CFrame.RightVector end
+                
+                moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
+                
+                if moveDir.Magnitude > 0 then
+                    local speed = _G.NoStunSpeed * (humanoid.WalkSpeed / 16)
+                    moveDir = moveDir.Unit * speed
+                    hrp.CFrame = hrp.CFrame + moveDir
+                end
+            end)
+        else
+            if _G.NoStunLoop then
+                _G.NoStunLoop:Disconnect()
+                _G.NoStunLoop = nil
+            end
+        end
+    end)
+    
+    CombatTab:NewLabel("Always use between 1 - 2 for safety. High values can cause bans.", "left")
+    
+    -- HITBOX EXPANDER (FIXED)
+    local HitboxSection = CombatTab:NewSection("Hitbox Expander")
+    
+    local function expandHitbox(targetPlayer)
+        if targetPlayer == player then return end
+        
+        local char = targetPlayer.Character
+        if not char then return end
+        
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        
+        -- Restore old hitbox if exists
+        local oldData = _G.ModifiedPlayers[targetPlayer.UserId]
+        if oldData and oldData.HRP and oldData.HRP.Parent then
+            oldData.HRP.Size = oldData.OriginalSize
+            oldData.HRP.Transparency = oldData.OriginalTransparency
+        end
+        
+        _G.ModifiedPlayers[targetPlayer.UserId] = {
+            OriginalSize = hrp.Size,
+            OriginalTransparency = hrp.Transparency,
+            HRP = hrp
+        }
+        
+        hrp.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+        hrp.Transparency = 0.7
+        hrp.Color = Color3.fromRGB(0, 255, 0)
+        hrp.Material = Enum.Material.ForceField
+    end
+    
+    local function restoreHitbox(targetPlayer)
+        local data = _G.ModifiedPlayers[targetPlayer.UserId]
+        if data and data.HRP and data.HRP.Parent then
+            data.HRP.Size = data.OriginalSize
+            data.HRP.Transparency = data.OriginalTransparency
+        end
+        _G.ModifiedPlayers[targetPlayer.UserId] = nil
+    end
+    
+    local function restoreAllHitboxes()
+        for userId, data in pairs(_G.ModifiedPlayers) do
+            if data and data.HRP and data.HRP.Parent then
+                data.HRP.Size = data.OriginalSize
+                data.HRP.Transparency = data.OriginalTransparency
+            end
+        end
+        _G.ModifiedPlayers = {}
+    end
+    
+    HitboxSlider = CombatTab:NewSlider("Hitbox Size", "", true, "/", {min = 2, max = 50, default = 10}, function(value)
+        _G.HitboxSize = value
+        if _G.HitboxEnabled then
+            for userId, data in pairs(_G.ModifiedPlayers) do
+                if userId ~= player.UserId and data and data.HRP and data.HRP.Parent then
+                    data.HRP.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+                end
+            end
+        end
+    end)
+    
+    local HitboxToggle = CombatTab:NewToggle("📦 Expand Enemy Hitboxes", false, function(state)
+        _G.HitboxEnabled = state
+        
+        local notifSound = Instance.new("Sound")
+        notifSound.Parent = workspace
+        notifSound.PlaybackSpeed = 1
+        notifSound.Volume = 0.15
+        notifSound.SoundId = "rbxassetid://4590662766"
+        notifSound.PlayOnRemove = true
+        notifSound:Destroy()
+        
+        if state then
+            -- Expand existing players
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= player then
+                    expandHitbox(plr)
+                end
+            end
+            
+            -- Handle new players
+            _G.PlayerAddedConnection = Players.PlayerAdded:Connect(function(newPlayer)
+                if newPlayer == player then return end
+                
+                -- Wait for character
+                local charAddedConn = newPlayer.CharacterAdded:Connect(function()
+                    task.wait(0.3)
+                    if _G.HitboxEnabled then 
+                        expandHitbox(newPlayer)
+                    end
+                end)
+                
+                local charRemovingConn = newPlayer.CharacterRemoving:Connect(function()
+                    _G.ModifiedPlayers[newPlayer.UserId] = nil
+                end)
+                
+                _G.CharacterConnections[newPlayer.UserId] = {
+                    Added = charAddedConn,
+                    Removing = charRemovingConn
+                }
+                
+                if newPlayer.Character then 
+                    expandHitbox(newPlayer) 
+                end
+            end)
+            
+            -- Handle leaving players
+            _G.PlayerRemovingConnection = Players.PlayerRemoving:Connect(function(leavingPlayer)
+                restoreHitbox(leavingPlayer)
+                if _G.CharacterConnections[leavingPlayer.UserId] then
+                    if _G.CharacterConnections[leavingPlayer.UserId].Added then
+                        _G.CharacterConnections[leavingPlayer.UserId].Added:Disconnect()
+                    end
+                    if _G.CharacterConnections[leavingPlayer.UserId].Removing then
+                        _G.CharacterConnections[leavingPlayer.UserId].Removing:Disconnect()
+                    end
+                    _G.CharacterConnections[leavingPlayer.UserId] = nil
+                end
+            end)
+            
+            -- Update loop (runs less frequently)
+            _G.UpdateLoopActive = true
+            task.spawn(function()
+                while _G.UpdateLoopActive and _G.HitboxEnabled do
+                    task.wait(0.5)
+                    
+                    if not _G.HitboxEnabled then break end
+                    
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr == player then continue end
+                        
+                        local char = plr.Character
+                        if char then
+                            local hrp = char:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                local data = _G.ModifiedPlayers[plr.UserId]
+                                if not data or not data.HRP or data.HRP.Parent == nil then
+                                    expandHitbox(plr)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        else
+            -- Cleanup
+            restoreAllHitboxes()
+            _G.UpdateLoopActive = false
+            
+            if _G.PlayerAddedConnection then
+                _G.PlayerAddedConnection:Disconnect()
+                _G.PlayerAddedConnection = nil
+            end
+            
+            if _G.PlayerRemovingConnection then
+                _G.PlayerRemovingConnection:Disconnect()
+                _G.PlayerRemovingConnection = nil
+            end
+            
+            for userId, conns in pairs(_G.CharacterConnections) do
+                if conns.Added then conns.Added:Disconnect() end
+                if conns.Removing then conns.Removing:Disconnect() end
+            end
+            _G.CharacterConnections = {}
+        end
+    end)
+    
+    CombatTab:NewLabel("Expands enemy HRP - green boxes visible", "left")
+    
+    -- CONFIG PAGE (IMPROVED)
+    local ConfigTab = Init:NewTab("Configs 💾")
+    
+    -- Config name input
+    ConfigTab:NewSection("Config Name")
+    ConfigNameInput = ConfigTab:NewTextbox("Config Name", "Enter config name...", function(text)
+        -- Just stores the name, actual save happens on toggle
+    end)
+    
+    -- Save Section
+    ConfigTab:NewSection("Save Config")
+    
+    ConfigTab:NewButton("💾 Save Config", function()
+        local configName = ConfigNameInput and ConfigNameInput.Value or "MyConfig"
+        if configName == "" then configName = "MyConfig" end
+        
+        local configData = {
+            NoStunSpeed = _G.NoStunSpeed,
+            HitboxSize = _G.HitboxSize,
+            Timestamp = os.time()
+        }
+        
+        saveConfig(configName, configData)
+        Notif:Notify("Config Saved! Name: " .. configName, 4, "success")
+    end)
+    
+    -- Load Section
+    ConfigTab:NewSection("Load Config")
+    
+    ConfigTab:NewButton("📂 Load Config", function()
+        local configName = ConfigNameInput and ConfigNameInput.Value or "MyConfig"
+        if configName == "" then configName = "MyConfig" end
+        
+        local data = loadConfig(configName)
+        if data then
+            _G.NoStunSpeed = data.NoStunSpeed or 0.20
+            _G.HitboxSize = data.HitboxSize or 10
+            
+            -- Update sliders
+            if SpeedSlider and SpeedSlider.SetValue then
+                pcall(function() SpeedSlider:SetValue(math.floor((_G.NoStunSpeed * 10) + 0.5)) end)
+            end
+            if HitboxSlider and HitboxSlider.SetValue then
+                pcall(function() HitboxSlider:SetValue(_G.HitboxSize) end)
+            end
+            
+            Notif:Notify("Config Loaded! " .. configName, 4, "success")
+        else
+            Notif:Notify("Error: Config not found: " .. configName, 4, "error")
+        end
+    end)
+    
+    ConfigTab:NewButton("🔄 List Configs", function()
+        local configs = listConfigs()
+        local list = table.concat(configs, ", ")
+        Notif:Notify(list ~= "" and list or "No configs found", 4, "information")
+    end)
+    
+    -- Autoload Section
+    ConfigTab:NewSection("Autoload")
+    
+    ConfigTab:NewButton("🔁 Set as Autoload", function()
+        local configName = ConfigNameInput and ConfigNameInput.Value or "MyConfig"
+        if configName == "" then configName = "MyConfig" end
+        
+        saveAutoloadConfig(configName)
+        Notif:Notify("Autoload Set! " .. configName, 4, "success")
+    end)
+    
+    -- Settings Page
+    local SettingsTab = Init:NewTab("Settings ⚙️")
+    local SettingsSection = SettingsTab:NewSection("GUI")
+    
+    SettingsTab:NewToggle("❌ Destroy GUI", false, function(state)
+        if state then
+            -- Cleanup everything
+            cleanupConnections()
+            
+            for _, conn in ipairs(inputConnections) do
+                conn:Disconnect()
+            end
+            
+            if fpsConnection then
+                fpsConnection:Disconnect()
+            end
+            
+            local notifSound = Instance.new("Sound")
+            notifSound.Parent = workspace
+            notifSound.PlaybackSpeed = 1
+            notifSound.Volume = 0.40
+            notifSound.SoundId = "rbxassetid://367383822"
+            notifSound.PlayOnRemove = true
+            notifSound:Destroy()
+            
+            task.wait(0.5)
+            library:Remove()
+        end
+    end)
+    
+    -- Autoload after UI is fully ready
+    task.delay(2, function()
+        local autoload = getAutoloadConfig()
+        if autoload then
+            local data = loadConfig(autoload)
+            if data then
+                _G.NoStunSpeed = data.NoStunSpeed or 0.20
+                _G.HitboxSize = data.HitboxSize or 10
+                
+                if SpeedSlider and SpeedSlider.SetValue then
+                    pcall(function() SpeedSlider:SetValue(math.floor((_G.NoStunSpeed * 10) + 0.5)) end)
+                end
+                if HitboxSlider and HitboxSlider.SetValue then
+                    pcall(function() HitboxSlider:SetValue(_G.HitboxSize) end)
+                end
+                
+                Notif:Notify("Autoloaded: " .. autoload, 4, "success")
+            end
+        end
+    end)
+    
+    Notif:Notify("WaterWare Loaded! Use RightControl to toggle UI", 5, "success")
+end
+
+-- KEY SYSTEM GUI
+local savedKey = loadSavedKey()
+if savedKey and savedKey == correctKey then
+    loadMainScript()
+else
+    local KeyGui = Instance.new("ScreenGui")
+    KeyGui.Name = "WaterWareKeySystem"
+    KeyGui.Parent = game.CoreGui
+    KeyGui.ResetOnSpawn = false
+    
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 400, 0, 280)
+    MainFrame.Position = UDim2.new(0.5, -200, 0.5, -140)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Parent = KeyGui
+    
+    -- Corner radius
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = MainFrame
+    
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 50)
+    Title.BackgroundColor3 = Color3.fromRGB(135, 206, 250)
+    Title.Text = "💧 WaterWare Key System"
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.TextSize = 24
+    Title.Font = Enum.Font.SourceSansBold
+    Title.Parent = MainFrame
+    
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 8)
+    TitleCorner.Parent = Title
+    
+    local SavedKeyStatus = Instance.new("TextLabel")
+    SavedKeyStatus.Size = UDim2.new(1, -20, 0, 25)
+    SavedKeyStatus.Position = UDim2.new(0, 10, 0, 55)
+    SavedKeyStatus.BackgroundTransparency = 1
+    if savedKey and savedKey ~= correctKey then
+        SavedKeyStatus.Text = "⚠️ Saved key is invalid!"
+        SavedKeyStatus.TextColor3 = Color3.fromRGB(255, 150, 50)
+    else
+        SavedKeyStatus.Text = ""
+    end
+    SavedKeyStatus.TextSize = 14
+    SavedKeyStatus.Font = Enum.Font.SourceSans
+    SavedKeyStatus.Parent = MainFrame
+    
+    local DiscordLabel = Instance.new("TextLabel")
+    DiscordLabel.Size = UDim2.new(1, -20, 0, 30)
+    DiscordLabel.Position = UDim2.new(0, 10, 0, 85)
+    DiscordLabel.BackgroundTransparency = 1
+    DiscordLabel.Text = "Join Discord for key:"
+    DiscordLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    DiscordLabel.TextSize = 14
+    DiscordLabel.Font = Enum.Font.SourceSans
+    DiscordLabel.Parent = MainFrame
+    
+    local CopyBtn = Instance.new("TextButton")
+    CopyBtn.Size = UDim2.new(1, -40, 0, 35)
+    CopyBtn.Position = UDim2.new(0, 20, 0, 115)
+    CopyBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    CopyBtn.Text = "📋 Copy Discord Link"
+    CopyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CopyBtn.TextSize = 16
+    CopyBtn.Font = Enum.Font.SourceSansBold
+    CopyBtn.Parent = MainFrame
+    
+    local CopyCorner = Instance.new("UICorner")
+    CopyCorner.CornerRadius = UDim.new(0, 6)
+    CopyCorner.Parent = CopyBtn
+    
+    local CopyStatus = Instance.new("TextLabel")
+    CopyStatus.Size = UDim2.new(1, -20, 0, 20)
+    CopyStatus.Position = UDim2.new(0, 10, 0, 150)
+    CopyStatus.BackgroundTransparency = 1
+    CopyStatus.Text = ""
+    CopyStatus.TextColor3 = Color3.fromRGB(50, 255, 50)
+    CopyStatus.TextSize = 12
+    CopyStatus.Font = Enum.Font.SourceSans
+    CopyStatus.Parent = MainFrame
+    
+    local KeyBox = Instance.new("TextBox")
+    KeyBox.Size = UDim2.new(1, -40, 0, 40)
+    KeyBox.Position = UDim2.new(0, 20, 0, 175)
+    KeyBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    KeyBox.Text = ""
+    KeyBox.PlaceholderText = "Enter Key Here..."
+    KeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    KeyBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    KeyBox.TextSize = 18
+    KeyBox.Font = Enum.Font.SourceSans
+    KeyBox.ClearTextOnFocus = false
+    KeyBox.Parent = MainFrame
+    
+    local KeyCorner = Instance.new("UICorner")
+    KeyCorner.CornerRadius = UDim.new(0, 6)
+    KeyCorner.Parent = KeyBox
+    
+    local SubmitBtn = Instance.new("TextButton")
+    SubmitBtn.Size = UDim2.new(0, 150, 0, 40)
+    SubmitBtn.Position = UDim2.new(0.5, -75, 1, -50)
+    SubmitBtn.BackgroundColor3 = Color3.fromRGB(135, 206, 250)
+    SubmitBtn.Text = "Submit"
+    SubmitBtn.TextColor3 = Color3.fromRGB(30, 30, 30)
+    SubmitBtn.TextSize = 20
+    SubmitBtn.Font = Enum.Font.SourceSansBold
+    SubmitBtn.Parent = MainFrame
+    
+    local SubmitCorner = Instance.new("UICorner")
+    SubmitCorner.CornerRadius = UDim.new(0, 6)
+    SubmitCorner.Parent = SubmitBtn
+    
+    local StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Size = UDim2.new(1, -20, 0, 25)
+    StatusLabel.Position = UDim2.new(0, 10, 0, 220)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Text = ""
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+    StatusLabel.TextSize = 14
+    StatusLabel.Font = Enum.Font.SourceSans
+    StatusLabel.Parent = MainFrame
+    
+    -- Make draggable
+    local dragging = false
+    local dragInput
+    local dragStart
+    local startPos
+    
+    Title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    
+    Title.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    Title.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    
+    CopyBtn.MouseButton1Click:Connect(function()
+        local success = pcall(function()
+            setclipboard(discordLink)
+        end)
+        
+        if success then
+            CopyStatus.Text = "✓ Link copied!"
+            CopyStatus.TextColor3 = Color3.fromRGB(50, 255, 50)
+        else
+            CopyStatus.Text = "✗ Copy failed"
+            CopyStatus.TextColor3 = Color3.fromRGB(255, 50, 50)
+        end
+        
+        task.wait(3)
+        CopyStatus.Text = ""
+    end)
+    
+    local function trySubmit()
+        local enteredKey = KeyBox.Text:gsub("%s+", "")
+        
+        if enteredKey == correctKey then
+            saveKey(enteredKey)
+            
+            StatusLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
+            StatusLabel.Text = "✓ Key Accepted! Loading..."
+            
+            task.wait(0.5)
+            KeyGui:Destroy()
+            loadMainScript()
+        else
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+            StatusLabel.Text = "✗ Invalid Key!"
+            KeyBox.Text = ""
+        end
+    end
+    
+    SubmitBtn.MouseButton1Click:Connect(trySubmit)
+    
+    KeyBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            trySubmit()
+        end
+    end)
+end
